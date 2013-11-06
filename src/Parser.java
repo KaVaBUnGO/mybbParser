@@ -15,7 +15,7 @@ public class Parser {
 	public String url = "http://anime4you.mybb.ru/";
 	Document doc;
 	private PrintWriter pw;
-	
+
 	public void connectUrl(String url) {
 		this.url = url;
 		connect();
@@ -37,16 +37,12 @@ public class Parser {
 	}
 
 	public void run() {
-		try {
-			pw = new PrintWriter("output.txt");
-		} catch (FileNotFoundException e1) {
-			e1.printStackTrace();
-		}
 		connect();
 		HashMap<Integer, ArrayList<Integer>> sectionDependencies = new HashMap<Integer, ArrayList<Integer>>();
 		ArrayList<Section> sections = new ArrayList<Section>();
 		HashSet<Integer> hs = new HashSet<Integer>();
 		Topic topics[] = new Topic[100000];
+		Post posts[] = new Post[1000000];
 		// Забираем темы верхнего уровня
 		Elements links = doc.select("a[href]");
 		for (Element link : links) {
@@ -67,6 +63,8 @@ public class Parser {
 		// Пробегаем по темам верхнего уровня и забираем темы нижнего уровня
 		int count = 0;
 		for (int id : sectionDependencies.keySet()) {
+			if (count++ > 1)
+				break;
 			// System.out.print(id + ": ");
 			int pages = 1;
 			String urlPattern = "http://anime4you.mybb.ru/viewforum.php?id=";
@@ -85,7 +83,6 @@ public class Parser {
 						continue;
 					}
 				}
-
 			}
 			for (int i = 1; i <= pages; i++) {
 				String url1 = curUrl.concat("&p=".concat(String.valueOf(i)));
@@ -105,22 +102,57 @@ public class Parser {
 					}
 				}
 			}
-			System.out.println();
+		}
 
-		}
-		pw.println("Всего форумов: " + sectionDependencies.size());
-		pw
-				.println("______________________________________________________________");
-		for (Section s : sections) {
-			pw.println(s.getName());
-			for (int id : sectionDependencies.get(s.getId())) {
-				pw.println("----" + topics[id].getName());
+		// Побежим разбирать топики на посты
+		for (ArrayList<Integer> topicIds : sectionDependencies.values()) {
+			for (int topicId : topicIds) {
+				// Получим число страниц в топике
+				String curUrl = topics[topicId].getUrl() + "=" + topicId;
+				connectUrl(curUrl);
+				int pages = 1;
+				Elements topPaginator = doc.getElementsByClass("linkst");
+				for (Element e : topPaginator) {
+					Elements hrefs = e.getElementsByTag("a");
+
+					for (Element el : hrefs) {
+						try {
+							int pageNumber = Integer.parseInt(el.text());
+							if (pageNumber > pages)
+								pages = pageNumber;
+						} catch (NumberFormatException exeption) {
+							continue;
+						}
+					}
+				}
+				System.out.println(topics[topicId].getUrl() + "=" + topicId
+						+ " " + pages);
+				// пробежим по страницам и выцепим посты
+				for (int i = 1; i <= pages; i++) {
+					String url1 = curUrl
+							.concat("&p=".concat(String.valueOf(i)));
+					connectUrl(url1);
+					Elements postsArr = doc.getElementsByClass("post");
+					for (Element e : postsArr) {
+						String name = e.getElementsByClass("pa-author")
+								.select("a").text();
+						String dateStr = e.getElementsByClass("permalink")
+								.text();
+						String id = e.select("div[id]").attr("id").substring(1);
+						Elements c = e.getElementsByClass("post-content").removeClass("post-sig");
+						String text = c.text();
+						System.out.println(name + " " + dateStr + " " + id
+								+ " " + text);
+						Post post = new Post(Integer.valueOf(id), dateStr,
+								name, text);
+						posts[post.getId()] = post;
+						topics[topicId].addPost(post.getId());
+					}
+					System.out.println(postsArr.size());
+				}
 			}
-			pw
-					.println("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 		}
-		
-		pw.close();
+		System.out.println();
 	}
 
 	public boolean checkUrlIsSection(String url) {
