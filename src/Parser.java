@@ -28,7 +28,7 @@ public class Parser {
 					.userAgent("Mozilla")
 					.timeout(3000)
 					.cookie("mybb_ru",
-							"MTU0MHwzfDIzM2UwYjllNWEzYjhmODkwMWFkNDMzYjVlM2UxYWIzNzAzZmJiMGU%3D")
+							"не логиньтесь с моими куками ;D")
 					.get();
 
 		} catch (IOException e) {
